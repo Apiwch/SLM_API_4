@@ -2,6 +2,9 @@ var express = require('express')
 var bodyParser = require('body-parser')
 var app = express()
 var cors = require('cors')
+var multer = require('multer');
+var fs = require('fs');
+var path = require('path');
 var { InfluxDBClient, Point } = require('@influxdata/influxdb3-client');
 
 app.use(cors())
@@ -11,9 +14,15 @@ app.set('port', (process.env.PORT || 4000))
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
 
+app.use(express.static('public'));
+app.use(bodyParser.raw({ type: 'image/*', limit: '10mb' }));
+
 const token = 'z-UccinXjSvvmdbLTEBAYTQp9nErpJVOLajQU7zgqlZgNwJUPaZOAUgYw55RoTa3vPmQ_x9eVFzSmCCxXl6QZA==';
 
 const client = new InfluxDBClient({host: 'https://eu-central-1-1.aws.cloud2.influxdata.com', token: token})
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 let data = [];
 
@@ -109,6 +118,30 @@ app.get('/api/PHis', function (req, res){
     main()
     
 });
+
+app.post('/upload', upload.single('image'), (req, res) => {
+    const imageName = 'uploaded_image.jpg';
+    fs.writeFileSync(path.join(__dirname, 'public', imageName), req.file.buffer);
+  
+    // Send a response to the client
+    res.send(`<img src="/${imageName}" alt="Uploaded Image"/>`);
+});
+
+app.get('/api/getImage', (req, res) => {
+    const imageName = 'uploaded_image.jpg';
+    const imagePath = path.join(__dirname, 'public', imageName);
+  
+    // Read the image file and send it in the response
+    fs.readFile(imagePath, (err, data) => {
+      if (err) {
+        res.status(500).send('Error reading the image file');
+        return;
+      }
+  
+      res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+      res.end(data);
+    });
+  });
 
 app.listen(app.get('port'), function () {
   console.log('run at port', app.get('port'))
